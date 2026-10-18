@@ -6,7 +6,63 @@ from typing import Any
 
 from contribution_mapper.github_reader import read_public_repository
 from contribution_mapper.report import build_report
-from contribution_mapper.technocore_reader import read_public_room
+from contribution_mapper.technocore_reader import (
+    read_public_room,
+    read_public_room_export,
+)
+
+SOURCES = ("recent", "export")
+
+
+def build_retrieval_coverage(
+    room_data: dict[str, Any], source: str, evidence_count: int
+) -> dict[str, Any]:
+    """Describe exactly which messages were examined, and what that excludes."""
+    messages = [m for m in room_data["messages"] if isinstance(m, dict)]
+    seqs = [m["seq"] for m in messages if isinstance(m.get("seq"), int)]
+    stamps = [m["ts"] for m in messages if isinstance(m.get("ts"), str)]
+    truncated = bool(room_data.get("truncated", False))
+
+    if source == "export":
+        scope = (
+            "The room's retained export, read in full."
+            if not truncated
+            else "The room's retained export, cut off at the size limit."
+        )
+    else:
+        scope = "Only the most recent batch returned by the room endpoint."
+
+    if evidence_count:
+        outcome = "Matches were found in the examined messages (unverified)."
+    else:
+        outcome = (
+            "No match in the examined messages. This does not show that no "
+            "matching message was ever posted."
+        )
+
+    return {
+        "method": source,
+        "scope": scope,
+        "messages_examined": len(messages),
+        "first_seq_examined": min(seqs) if seqs else None,
+        "last_seq_examined": max(seqs) if seqs else None,
+        "earliest_ts_examined": min(stamps) if stamps else None,
+        "latest_ts_examined": max(stamps) if stamps else None,
+        "server_reported_first_seq": (
+            room_data.get("first_seq") if source == "recent" else None
+        ),
+        "generation": room_data.get("generation"),
+        "truncated": truncated,
+        "malformed_records_skipped": room_data.get(
+            "malformed_records_skipped", 0
+        ),
+        "retained_window_fully_examined": source == "export" and not truncated,
+        "complete_history_searched": False,
+        "note": (
+            f"{outcome} The server keeps only a bounded window of recent "
+            "messages, so older messages may no longer be retrievable."
+        ),
+    }
 
 
 def run_mapper(
@@ -17,10 +73,17 @@ def run_mapper(
     artifact_url: str | None = None,
     commit: str | None = None,
     output: str = "contribution-report.json",
+    source: str = "recent",
 ) -> dict[str, Any]:
     """Fetch public metadata and messages, then save a local JSON report."""
     repository = read_public_repository(owner, repository_name)
-    room_data = read_public_room(room)
+    if source not in SOURCES:
+        raise ValueError(f"source must be one of {SOURCES}.")
+
+    if source == "export":
+        room_data = read_public_room_export(room)
+    else:
+        room_data = read_public_room(room)
 
     report = build_report(
         repository,
@@ -36,6 +99,11 @@ def run_mapper(
         "last_seq": room_data["last_seq"],
         "source": room_data["source"],
     }
+
+    report["report_version"] = "1.2"
+    report["retrieval_coverage"] = build_retrieval_coverage(
+        room_data, source, report["evidence"]["record_count"]
+    )
 
     output_path = Path(output)
     output_path.write_text(

@@ -74,6 +74,29 @@ Optional arguments include:
 - `--commit`: full Git commit SHA to look for in retrieved messages.
 - `--room`: public Technocore room to inspect.
 - `--output`: path for the generated JSON report.
+- `--source`: `recent` (default) reads only the newest batch of messages (about 50). `export` reads the room's retained export (`/r/<room>/export`), which is the widest window the server offers, bounded by a 16 MiB read cap.
+
+### Retrieval coverage
+
+Technocore keeps only a bounded, rolling window of messages per room. In a busy room that window can be a few hours, so a message posted days ago may no longer be retrievable by any endpoint. The `since` parameter only reads forward from a sequence number; it cannot reach back to older messages.
+
+Every report therefore includes a `retrieval_coverage` section:
+
+| Field | Meaning |
+| --- | --- |
+| `method` | `recent` or `export` |
+| `scope` | Plain-language description of what was read |
+| `messages_examined` | Number of messages searched |
+| `first_seq_examined` / `last_seq_examined` | Sequence range actually searched |
+| `earliest_ts_examined` / `latest_ts_examined` | Time range actually searched |
+| `server_reported_first_seq`, `generation` | Values reported by the room endpoint, when present |
+| `truncated` | True if the export hit the size cap |
+| `malformed_records_skipped` | Export lines that could not be parsed |
+| `retained_window_fully_examined` | True only for an untruncated export read |
+| `complete_history_searched` | Always `false`: full history cannot be established |
+| `note` | Human-readable summary of what a no-match result does and does not mean |
+
+If your announcement's sequence number is lower than `first_seq_examined`, it has aged out of the retained window and this tool cannot find it. Keep your signed proof file as the durable record.
 
 The tool uses public information and does not require a GitHub personal access token for its public repository metadata request. Do not place private keys, access tokens, or other credentials in reports or commit them to the repository.
 
@@ -85,7 +108,7 @@ Run the unit test suite with:
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-The initial implementation passed 38 unit tests in the development environment. Run the suite again on your own environment to confirm its current result.
+The suite currently has 56 unit tests, all using mocked network responses. Run the suite again on your own environment to confirm its current result.
 
 ## Understanding evidence
 
@@ -102,7 +125,7 @@ The current message matcher records textual references as unverified evidence. I
 
 ## Current limitations
 
-- The mapper reads a bounded set of messages returned by the room API; it does not establish that every historical message has been examined.
+- The mapper reads a bounded set of messages (the newest batch, or the room's retained export); it never establishes that every historical message has been examined. See "Retrieval coverage" above.
 - Textual matching can find useful references but cannot establish authenticity or attribution.
 - The current implementation does not independently verify all cryptographic proofs associated with a contribution.
 - Repository metadata and message references should be treated as separate evidence sources.
@@ -124,7 +147,7 @@ Potential future improvements, subject to implementation and testing:
 - Cryptographic verification of supported contribution proofs.
 - More comprehensive evidence provenance and conflict handling.
 - Additional tests against malformed and adversarial source data.
-- Clearer report coverage information, including retrieval limits.
+- Optional continuous capture (poll forward with `since` and save locally) so evidence outlives the server's retention window.
 
 Roadmap items are proposals, not claims that the functionality already exists.
 

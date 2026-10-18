@@ -23,6 +23,15 @@ def main() -> int:
         default="contribution-report.json",
         help="Local JSON output path",
     )
+    parser.add_argument(
+        "--source",
+        choices=("recent", "export"),
+        default="recent",
+        help=(
+            "recent: latest batch only; export: the room's full retained "
+            "window (still not complete history)"
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -33,6 +42,7 @@ def main() -> int:
             artifact_url=args.artifact_url,
             commit=args.commit,
             output=args.output,
+            source=args.source,
         )
     except (ValueError, OSError, RuntimeError) as error:
         print(f"Mapper error: {error}", file=sys.stderr)
@@ -44,6 +54,14 @@ def main() -> int:
     print(
         "Authorship verified by text matching: "
         f"{report['interpretation']['text_matches_prove_authorship']}"
+    )
+    coverage = report["retrieval_coverage"]
+    print(
+        f"Examined {coverage['messages_examined']} messages "
+        f"(seq {coverage['first_seq_examined']} to "
+        f"{coverage['last_seq_examined']}); "
+        "complete history searched: "
+        f"{coverage['complete_history_searched']}"
     )
     return 0
 
