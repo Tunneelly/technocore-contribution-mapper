@@ -22,3 +22,8 @@ contribution-report.json
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Packaging
+build/
+dist/
+*.egg-info/

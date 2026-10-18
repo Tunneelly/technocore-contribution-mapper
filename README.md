@@ -32,7 +32,10 @@ technocore-contribution-mapper/
 │       ├── runner.py
 │       └── technocore_reader.py
 ├── tests/
+├── .github/workflows/tests.yml
 ├── .gitignore
+├── LICENSE
+├── pyproject.toml
 └── README.md
 ```
 
@@ -42,33 +45,38 @@ technocore-contribution-mapper/
 - Network access is needed for live GitHub and Technocore queries.
 - The core uses only Python's standard library. Proof verification (`--proof`) additionally needs `pip install cryptography`.
 
+## Install
+
+```bash
+pip install "git+https://github.com/Tunneelly/technocore-contribution-mapper.git"
+```
+
+To also verify signed proofs (`--proof`), install the optional extra:
+
+```bash
+pip install "technocore-contribution-mapper[proof] @ git+https://github.com/Tunneelly/technocore-contribution-mapper.git"
+```
+
+For development, from a clone of this repository:
+
+```bash
+pip install -e ".[proof]"
+```
+
 ## Run the mapper
 
-From the repository root, run:
-
 ```bash
-PYTHONPATH=src python -m contribution_mapper --help
-```
-
-To inspect a public repository and search the Technocore `lobby` room:
-
-```bash
-PYTHONPATH=src python -m contribution_mapper OWNER REPOSITORY \
-  --room lobby \
+contribution-mapper OWNER REPOSITORY \
+  --room technocore \
+  --source export \
+  --artifact-url https://github.com/OWNER/REPOSITORY \
+  --commit FULL_40_CHAR_SHA \
   --output contribution-report.json
 ```
 
-Replace `OWNER` and `REPOSITORY` with the GitHub repository owner and repository name you want to inspect.
+Replace `OWNER`, `REPOSITORY` and the commit with the public repository and revision you want to look for. Without installing, run the same arguments from a clone with `PYTHONPATH=src python -m contribution_mapper ...`.
 
-For example, to inspect the Technocore DID starter repository:
-
-```bash
-PYTHONPATH=src python -m contribution_mapper zunmax technocore-did-starter \
-  --room lobby \
-  --output contribution-report.json
-```
-
-This example inspects a public repository; it does not imply that the repository belongs to this project's author.
+**Timing matters.** Technocore keeps only a rolling window of recent room messages (see "Retrieval coverage" below). Run the mapper soon after an announcement is posted; a message that has aged out cannot be found by any endpoint, and the report will say what range it actually searched.
 
 Optional arguments include:
 
@@ -131,6 +139,43 @@ If your announcement's sequence number is lower than `first_seq_examined`, it ha
 
 The tool uses public information and does not require a GitHub personal access token for its public repository metadata request. Do not place private keys, access tokens, or other credentials in reports or commit them to the repository.
 
+### Sample report
+
+Abridged, with illustrative values:
+
+```json
+{
+  "report_version": "1.3",
+  "repository": { "full_name": "example/project", "html_url": "https://github.com/example/project" },
+  "evidence": {
+    "record_count": 1,
+    "status_counts": { "verified": 0, "unverified": 1, "conflicting": 0, "unknown": 0 },
+    "records": [
+      {
+        "source_type": "technocore_message_reference",
+        "claim": "Message from did:key:zExample references the requested artifact; seq=900",
+        "status": "unverified",
+        "details": "exact artifact URL appears in message text. Textual reference only; identity and authorship not proven."
+      }
+    ]
+  },
+  "interpretation": {
+    "text_matches_prove_authorship": false,
+    "text_matches_prove_did_control": false
+  },
+  "proof_verification": { "status": "not_supplied" },
+  "retrieval_coverage": {
+    "method": "export",
+    "messages_examined": 1,
+    "first_seq_examined": 900,
+    "last_seq_examined": 900,
+    "retained_window_fully_examined": true,
+    "complete_history_searched": false,
+    "note": "Matches were found in the examined messages (unverified). The server keeps only a bounded window of recent messages, so older messages may no longer be retrievable."
+  }
+}
+```
+
 ## Run tests
 
 Run the unit test suite with:
@@ -184,4 +229,4 @@ Roadmap items are proposals, not claims that the functionality already exists.
 
 ## License
 
-No license has been declared yet. Until a license is added, do not assume that this repository grants permission to reuse, redistribute, or modify its code.
+Released under the [MIT License](LICENSE).
