@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from contribution_mapper.github_reader import read_public_repository
+from contribution_mapper.proof import verify_proof_file
 from contribution_mapper.report import build_report
 from contribution_mapper.technocore_reader import (
     read_public_room,
@@ -74,11 +75,24 @@ def run_mapper(
     commit: str | None = None,
     output: str = "contribution-report.json",
     source: str = "recent",
+    proof_file: str | None = None,
 ) -> dict[str, Any]:
     """Fetch public metadata and messages, then save a local JSON report."""
-    repository = read_public_repository(owner, repository_name)
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}.")
+
+    # Verified first so a bad proof file fails before any network access.
+    # Proof verification is reported separately from text-match evidence.
+    if proof_file is not None:
+        proof_result = verify_proof_file(
+            proof_file,
+            requested_artifact_url=artifact_url,
+            requested_commit=commit,
+        )
+    else:
+        proof_result = {"status": "not_supplied"}
+
+    repository = read_public_repository(owner, repository_name)
 
     if source == "export":
         room_data = read_public_room_export(room)
@@ -100,7 +114,8 @@ def run_mapper(
         "source": room_data["source"],
     }
 
-    report["report_version"] = "1.2"
+    report["report_version"] = "1.3"
+    report["proof_verification"] = proof_result
     report["retrieval_coverage"] = build_retrieval_coverage(
         room_data, source, report["evidence"]["record_count"]
     )

@@ -10,6 +10,7 @@ The goal is to help contributors investigate possible relationships between a pu
 
 - Read metadata for a public GitHub repository using the GitHub API.
 - Read public messages from a Technocore room.
+- Verify a signed contribution proof (Ed25519 `did:key`) as a separate operation from text matching.
 - Search retrieved messages for an exact artifact URL or a full Git commit SHA.
 - Represent evidence with explicit statuses: `verified`, `unverified`, `conflicting`, and `unknown`.
 - Generate a JSON report containing repository metadata, evidence summaries, interpretation flags, and Technocore source information.
@@ -26,6 +27,7 @@ technocore-contribution-mapper/
 │       ├── evidence.py
 │       ├── github_reader.py
 │       ├── matcher.py
+│       ├── proof.py
 │       ├── report.py
 │       ├── runner.py
 │       └── technocore_reader.py
@@ -38,7 +40,7 @@ technocore-contribution-mapper/
 
 - Python 3.10 or newer is recommended.
 - Network access is needed for live GitHub and Technocore queries.
-- The current implementation uses Python's standard library for its core functionality.
+- The core uses only Python's standard library. Proof verification (`--proof`) additionally needs `pip install cryptography`.
 
 ## Run the mapper
 
@@ -74,7 +76,36 @@ Optional arguments include:
 - `--commit`: full Git commit SHA to look for in retrieved messages.
 - `--room`: public Technocore room to inspect.
 - `--output`: path for the generated JSON report.
+- `--proof`: path to a public signed contribution proof JSON file to verify (see below).
 - `--source`: `recent` (default) reads only the newest batch of messages (about 50). `export` reads the room's retained export (`/r/<room>/export`), which is the widest window the server offers, bounded by a 16 MiB read cap.
+
+### Verifying a signed proof
+
+```bash
+pip install cryptography   # only needed for --proof
+PYTHONPATH=src python -m contribution_mapper OWNER REPOSITORY \
+  --artifact-url https://github.com/OWNER/REPOSITORY \
+  --commit FULL_40_CHAR_SHA \
+  --proof contribution-proof.json
+```
+
+Proofs use the `technocore-contribution-proof-v1` format produced by the Technocore DID starter. The report gets a `proof_verification` section, kept apart from the text-match `evidence` list:
+
+| `status` | Meaning |
+| --- | --- |
+| `valid` | The signature is correct for the stated DID, artifact URL and commit |
+| `invalid` | The proof is well-formed but the signature does not match (tampered, or signed by a different key) |
+| `malformed` | The file is not a supported, well-formed proof |
+| `unavailable` | The optional `cryptography` package is missing, so nothing was checked |
+| `not_supplied` | No `--proof` was given |
+
+`artifact_url_matches_request` and `commit_matches_request` tell you whether a valid proof is about the artifact and commit you asked about. A valid proof for a different commit is still valid, but it says nothing about yours.
+
+**What a valid proof shows:** whoever made it held the private key for that DID when they signed that exact artifact URL and commit.
+
+**What it does not show:** who controls the DID in real life, that the signer wrote the commit, that the commit exists in the repository, that any Technocore message came from the same key, or that the DID holds funds. Every `valid` result lists these limits in `does_not_prove`.
+
+Only supply the public proof file. The mapper never needs, reads, or asks for a private key.
 
 ### Retrieval coverage
 
@@ -108,7 +139,7 @@ Run the unit test suite with:
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-The suite currently has 56 unit tests, all using mocked network responses. Run the suite again on your own environment to confirm its current result.
+The suite currently has 80 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
 
 ## Understanding evidence
 
@@ -127,7 +158,7 @@ The current message matcher records textual references as unverified evidence. I
 
 - The mapper reads a bounded set of messages (the newest batch, or the room's retained export); it never establishes that every historical message has been examined. See "Retrieval coverage" above.
 - Textual matching can find useful references but cannot establish authenticity or attribution.
-- The current implementation does not independently verify all cryptographic proofs associated with a contribution.
+- Only the contribution proof format above is verified. Technocore message signatures are not verified, and the mapper does not check that a commit exists on GitHub.
 - Repository metadata and message references should be treated as separate evidence sources.
 - A report with no matches does not prove that no related contribution exists.
 
@@ -144,7 +175,7 @@ The current message matcher records textual references as unverified evidence. I
 Potential future improvements, subject to implementation and testing:
 
 - Stronger validation of source URLs and network redirects.
-- Cryptographic verification of supported contribution proofs.
+- Offline verification of Technocore message signatures, and checking a commit against GitHub.
 - More comprehensive evidence provenance and conflict handling.
 - Additional tests against malformed and adversarial source data.
 - Optional continuous capture (poll forward with `since` and save locally) so evidence outlives the server's retention window.

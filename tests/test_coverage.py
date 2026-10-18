@@ -182,7 +182,7 @@ class RunnerCoverageTests(unittest.TestCase):
         self.assertEqual(cov["first_seq_examined"], 500)
         self.assertTrue(cov["retained_window_fully_examined"])
         self.assertFalse(cov["complete_history_searched"])
-        self.assertEqual(saved["report_version"], "1.2")
+        self.assertEqual(saved["report_version"], "1.3")
         self.assertFalse(saved["interpretation"]["text_matches_prove_authorship"])
 
     @patch("contribution_mapper.runner.read_public_room_export")

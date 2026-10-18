@@ -32,6 +32,10 @@ def main() -> int:
             "window (still not complete history)"
         ),
     )
+    parser.add_argument(
+        "--proof",
+        help="Signed contribution proof JSON to verify (public file only)",
+    )
     args = parser.parse_args()
 
     try:
@@ -43,6 +47,7 @@ def main() -> int:
             commit=args.commit,
             output=args.output,
             source=args.source,
+            proof_file=args.proof,
         )
     except (ValueError, OSError, RuntimeError) as error:
         print(f"Mapper error: {error}", file=sys.stderr)
@@ -63,6 +68,19 @@ def main() -> int:
         "complete history searched: "
         f"{coverage['complete_history_searched']}"
     )
+    proof = report["proof_verification"]
+    print(f"Signed proof: {proof['status']}")
+    if proof["status"] == "valid":
+        print(f"  signed by {proof['did']}")
+        print(f"  commit {proof['commit']}")
+        print(
+            "  matches --artifact-url: "
+            f"{proof['artifact_url_matches_request']}; "
+            f"matches --commit: {proof['commit_matches_request']}"
+        )
+        print("  This does not prove authorship of the commit.")
+    elif proof.get("reason"):
+        print(f"  {proof['reason']}")
     return 0
 
 
