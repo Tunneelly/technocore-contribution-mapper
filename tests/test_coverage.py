@@ -161,9 +161,11 @@ class CoverageTests(unittest.TestCase):
 
 
 class RunnerCoverageTests(unittest.TestCase):
+    @patch("contribution_mapper.runner.check_commit_exists")
     @patch("contribution_mapper.runner.read_public_room_export")
     @patch("contribution_mapper.runner.read_public_repository")
-    def test_export_source_older_announcement_not_in_window(self, mock_repo, mock_export):
+    def test_export_source_older_announcement_not_in_window(self, mock_repo, mock_export, mock_commit):
+        mock_commit.return_value = {"status": "found"}
         # Models the real case: target announcement (seq 100) is older than
         # the oldest retained message (seq 500), so it cannot be found.
         mock_repo.return_value = REPO
@@ -182,12 +184,14 @@ class RunnerCoverageTests(unittest.TestCase):
         self.assertEqual(cov["first_seq_examined"], 500)
         self.assertTrue(cov["retained_window_fully_examined"])
         self.assertFalse(cov["complete_history_searched"])
-        self.assertEqual(saved["report_version"], "1.3")
+        self.assertEqual(saved["report_version"], "1.4")
         self.assertFalse(saved["interpretation"]["text_matches_prove_authorship"])
 
+    @patch("contribution_mapper.runner.check_commit_exists")
     @patch("contribution_mapper.runner.read_public_room_export")
     @patch("contribution_mapper.runner.read_public_repository")
-    def test_match_in_export_is_unverified(self, mock_repo, mock_export):
+    def test_match_in_export_is_unverified(self, mock_repo, mock_export, mock_commit):
+        mock_commit.return_value = {"status": "found"}
         mock_repo.return_value = REPO
         mock_export.return_value = {
             "room": "technocore", "count": 1, "first_seq": 7, "last_seq": 7,

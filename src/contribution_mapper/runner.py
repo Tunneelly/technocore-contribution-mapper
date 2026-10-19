@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from contribution_mapper.github_reader import read_public_repository
+from contribution_mapper.github_reader import (
+    check_commit_exists,
+    read_public_repository,
+)
 from contribution_mapper.proof import verify_proof_file
 from contribution_mapper.report import build_report
 from contribution_mapper.technocore_reader import (
@@ -94,6 +97,12 @@ def run_mapper(
 
     repository = read_public_repository(owner, repository_name)
 
+    # Reported separately; a failed check never aborts the run.
+    if commit is None:
+        commit_result = {"status": "not_requested"}
+    else:
+        commit_result = check_commit_exists(owner, repository_name, commit)
+
     if source == "export":
         room_data = read_public_room_export(room)
     else:
@@ -114,7 +123,8 @@ def run_mapper(
         "source": room_data["source"],
     }
 
-    report["report_version"] = "1.3"
+    report["report_version"] = "1.4"
+    report["commit_check"] = commit_result
     report["proof_verification"] = proof_result
     report["retrieval_coverage"] = build_retrieval_coverage(
         room_data, source, report["evidence"]["record_count"]

@@ -10,6 +10,7 @@ The goal is to help contributors investigate possible relationships between a pu
 
 - Read metadata for a public GitHub repository using the GitHub API.
 - Read public messages from a Technocore room.
+- Check that GitHub resolves the supplied commit hash under the repository (reported separately).
 - Verify a signed contribution proof (Ed25519 `did:key`) as a separate operation from text matching.
 - Search retrieved messages for an exact artifact URL or a full Git commit SHA.
 - Represent evidence with explicit statuses: `verified`, `unverified`, `conflicting`, and `unknown`.
@@ -87,6 +88,22 @@ Optional arguments include:
 - `--proof`: path to a public signed contribution proof JSON file to verify (see below).
 - `--source`: `recent` (default) reads only the newest batch of messages (about 50). `export` reads the room's retained export (`/r/<room>/export`), which is the widest window the server offers, bounded by a 16 MiB read cap.
 
+### Commit check
+
+When you pass `--commit` with a full 40- or 64-character hash, the mapper asks GitHub whether it serves that commit under `OWNER/REPOSITORY`. It uses GitHub's SHA-only response, so no author or file data is fetched. The report gets a `commit_check` section:
+
+| `status` | Meaning |
+| --- | --- |
+| `found` | GitHub resolves this exact hash under the repository's URL (`url` links to it) |
+| `not_found` | GitHub does not serve it there: mistyped, nonexistent, or private |
+| `unavailable` | The check could not run (rate limit, network error, unexpected response); this says nothing about the commit |
+| `skipped` | The commit is not a full hash (a short hash is ambiguous) |
+| `not_requested` | No `--commit` was given |
+
+`found` does not show who wrote the commit or that it is on a particular branch; GitHub can also resolve commits that exist only in forks of a repository. A check never aborts a run.
+
+Unauthenticated GitHub API calls are limited per IP address (60 per hour at the time of writing). A run makes two GitHub calls, or one if `--commit` is omitted, so a rate-limited run reports `unavailable` and you can retry later.
+
 ### Verifying a signed proof
 
 ```bash
@@ -111,7 +128,7 @@ Proofs use the `technocore-contribution-proof-v1` format produced by the Technoc
 
 **What a valid proof shows:** whoever made it held the private key for that DID when they signed that exact artifact URL and commit.
 
-**What it does not show:** who controls the DID in real life, that the signer wrote the commit, that the commit exists in the repository, that any Technocore message came from the same key, or that the DID holds funds. Every `valid` result lists these limits in `does_not_prove`.
+**What it does not show:** who controls the DID in real life, that the signer wrote the commit, that the commit exists in the repository (the separate commit check covers that), that any Technocore message came from the same key, or that the DID holds funds. Every `valid` result lists these limits in `does_not_prove`.
 
 Only supply the public proof file. The mapper never needs, reads, or asks for a private key.
 
@@ -145,7 +162,7 @@ Abridged, with illustrative values:
 
 ```json
 {
-  "report_version": "1.3",
+  "report_version": "1.4",
   "repository": { "full_name": "example/project", "html_url": "https://github.com/example/project" },
   "evidence": {
     "record_count": 1,
@@ -163,6 +180,7 @@ Abridged, with illustrative values:
     "text_matches_prove_authorship": false,
     "text_matches_prove_did_control": false
   },
+  "commit_check": { "status": "not_requested" },
   "proof_verification": { "status": "not_supplied" },
   "retrieval_coverage": {
     "method": "export",
@@ -184,7 +202,7 @@ Run the unit test suite with:
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-The suite currently has 80 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
+The suite currently has 92 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
 
 ## Understanding evidence
 
@@ -203,7 +221,7 @@ The current message matcher records textual references as unverified evidence. I
 
 - The mapper reads a bounded set of messages (the newest batch, or the room's retained export); it never establishes that every historical message has been examined. See "Retrieval coverage" above.
 - Textual matching can find useful references but cannot establish authenticity or attribution.
-- Only the contribution proof format above is verified. Technocore message signatures are not verified, and the mapper does not check that a commit exists on GitHub.
+- Only the contribution proof format above is verified. Technocore message signatures are not verified, and a commit check shows only that GitHub resolves the hash, not who wrote it.
 - Repository metadata and message references should be treated as separate evidence sources.
 - A report with no matches does not prove that no related contribution exists.
 
@@ -220,7 +238,7 @@ The current message matcher records textual references as unverified evidence. I
 Potential future improvements, subject to implementation and testing:
 
 - Stronger validation of source URLs and network redirects.
-- Offline verification of Technocore message signatures, and checking a commit against GitHub.
+- Offline verification of Technocore message signatures.
 - More comprehensive evidence provenance and conflict handling.
 - Additional tests against malformed and adversarial source data.
 - Optional continuous capture (poll forward with `since` and save locally) so evidence outlives the server's retention window.

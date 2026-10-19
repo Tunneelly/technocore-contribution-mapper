@@ -68,6 +68,14 @@ def main() -> int:
         "complete history searched: "
         f"{coverage['complete_history_searched']}"
     )
+    commit_check = report["commit_check"]
+    print(f"Commit on GitHub: {commit_check['status']}")
+    if commit_check.get("reason"):
+        print(f"  {commit_check['reason']}")
+    elif commit_check["status"] == "found":
+        print(f"  {commit_check['url']}")
+        print("  This does not show who wrote the commit or which branch holds it.")
+
     proof = report["proof_verification"]
     print(f"Signed proof: {proof['status']}")
     if proof["status"] == "valid":

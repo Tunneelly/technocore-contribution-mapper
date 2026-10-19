@@ -231,9 +231,13 @@ class RunnerProofTests(unittest.TestCase):
         mock_room.assert_not_called()
 
     @unittest.skipUnless(HAVE_CRYPTO, "cryptography not installed")
+    @patch("contribution_mapper.runner.check_commit_exists")
     @patch("contribution_mapper.runner.read_public_room")
     @patch("contribution_mapper.runner.read_public_repository")
-    def test_valid_proof_stays_separate_from_evidence(self, mock_repo, mock_room):
+    def test_valid_proof_stays_separate_from_evidence(
+        self, mock_repo, mock_room, mock_commit
+    ):
+        mock_commit.return_value = {"status": "found"}
         mock_repo.return_value = REPO
         mock_room.return_value = self.room()
         with tempfile.TemporaryDirectory() as d:
