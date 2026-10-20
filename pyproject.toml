@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "technocore-contribution-mapper"
-version = "0.1.0"
+version = "0.2.0"
 description = "Correlate public GitHub evidence with public Technocore room messages, without overclaiming."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,7 @@ proof = ["cryptography>=42"]
 
 [project.scripts]
 contribution-mapper = "contribution_mapper.__main__:main"
+contribution-mapper-ui = "contribution_mapper.ui:main"
 
 [project.urls]
 Repository = "https://github.com/Tunneelly/technocore-contribution-mapper"

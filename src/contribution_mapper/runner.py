@@ -8,7 +8,7 @@ from contribution_mapper.github_reader import (
     check_commit_exists,
     read_public_repository,
 )
-from contribution_mapper.proof import verify_proof_file
+from contribution_mapper.proof import verify_proof_data, verify_proof_file
 from contribution_mapper.report import build_report
 from contribution_mapper.technocore_reader import (
     read_public_room,
@@ -76,17 +76,32 @@ def run_mapper(
     *,
     artifact_url: str | None = None,
     commit: str | None = None,
-    output: str = "contribution-report.json",
+    output: str | None = "contribution-report.json",
     source: str = "recent",
     proof_file: str | None = None,
+    proof_data: Any = None,
 ) -> dict[str, Any]:
-    """Fetch public metadata and messages, then save a local JSON report."""
+    """Fetch public metadata and messages, then save a local JSON report.
+
+    ``output=None`` skips writing a file. ``proof_data`` is an already-parsed
+    proof object, an alternative to ``proof_file`` for callers (such as the
+    web interface) that never touch disk.
+    """
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}.")
 
+    if proof_file is not None and proof_data is not None:
+        raise ValueError("Provide either proof_file or proof_data, not both.")
+
     # Verified first so a bad proof file fails before any network access.
     # Proof verification is reported separately from text-match evidence.
-    if proof_file is not None:
+    if proof_data is not None:
+        proof_result = verify_proof_data(
+            proof_data,
+            requested_artifact_url=artifact_url,
+            requested_commit=commit,
+        )
+    elif proof_file is not None:
         proof_result = verify_proof_file(
             proof_file,
             requested_artifact_url=artifact_url,
@@ -130,9 +145,9 @@ def run_mapper(
         room_data, source, report["evidence"]["record_count"]
     )
 
-    output_path = Path(output)
-    output_path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    if output is not None:
+        Path(output).write_text(
+            json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
     return report

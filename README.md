@@ -11,6 +11,7 @@ The goal is to help contributors investigate possible relationships between a pu
 - Read metadata for a public GitHub repository using the GitHub API.
 - Read public messages from a Technocore room.
 - Check that GitHub resolves the supplied commit hash under the repository (reported separately).
+- Offer a local web interface (`contribution-mapper-ui`) that runs the same logic from a browser form.
 - Verify a signed contribution proof (Ed25519 `did:key`) as a separate operation from text matching.
 - Search retrieved messages for an exact artifact URL or a full Git commit SHA.
 - Represent evidence with explicit statuses: `verified`, `unverified`, `conflicting`, and `unknown`.
@@ -31,7 +32,9 @@ technocore-contribution-mapper/
 │       ├── proof.py
 │       ├── report.py
 │       ├── runner.py
-│       └── technocore_reader.py
+│       ├── technocore_reader.py
+│       ├── ui.py
+│       └── ui_page.py
 ├── tests/
 ├── .github/workflows/tests.yml
 ├── .gitignore
@@ -63,6 +66,27 @@ For development, from a clone of this repository:
 ```bash
 pip install -e ".[proof]"
 ```
+
+## Web interface
+
+Prefer a form to command-line flags? Launch the local web interface:
+
+```bash
+contribution-mapper-ui
+```
+
+It starts a small server on your own machine and opens your browser (use `--no-browser` to skip that). Enter a repository, optionally a full commit hash, a room, and a public proof, then press **Run mapper**. The page runs exactly the same code as the command line and shows the commit check, proof result, message matches and search coverage as separate cards, with the full JSON report to copy or download. Without installing, run `PYTHONPATH=src python -m contribution_mapper.ui` from a clone.
+
+**In GitHub Codespaces**, run the command, then open the forwarded port from the **Ports** tab (or the link the command prints). Keep the port **Private** so only you can reach it.
+
+| Option | Meaning |
+| --- | --- |
+| `--port N` | Port to use (default 8765; `0` picks a free one) |
+| `--no-browser` | Do not try to open a browser window |
+| `--host ADDR` | Address to listen on (default `127.0.0.1`, this machine only) |
+| `--allow-host NAME` | Extra Host header to accept, for a reverse proxy you trust |
+
+How it stays safe: it listens on this machine only by default; every request must carry a random per-launch token that only the page it served knows; requests with an unexpected Host header (DNS-rebinding) or from another site are refused; inputs are size-capped and validated; the page is served with a strict Content-Security-Policy and renders report text as plain text, never as HTML, because room messages are written by strangers; and nothing is written to disk. It reads only public GitHub and Technocore data. Never paste a private key; the form refuses text that looks like one.
 
 ## Run the mapper
 
@@ -202,7 +226,7 @@ Run the unit test suite with:
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-The suite currently has 92 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
+The suite currently has 120 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
 
 ## Understanding evidence
 
