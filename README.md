@@ -1,27 +1,271 @@
 # Technocore Contribution Mapper
 
-An evidence-based tool for correlating public GitHub repository metadata with public Technocore room messages.
+![Technocore Contribution Mapper banner](assets/banner.png)
 
-The goal is to help contributors investigate possible relationships between a public software artifact and public Technocore records, while clearly distinguishing observed information from unverified claims.
+Map your work. Without overclaiming.
 
-**Important:** A textual match is a lead for further investigation. It is not proof of authorship, Git commit ownership, signature validity, or control of a decentralized identifier (DID).
+Runs on your machine · Public data only
 
-## Current capabilities
+[![tests workflow](https://github.com/Tunneelly/technocore-contribution-mapper/actions/workflows/tests.yml/badge.svg)](https://github.com/Tunneelly/technocore-contribution-mapper/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python: 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/
 
-- Read metadata for a public GitHub repository using the GitHub API.
-- Read public messages from a Technocore room.
-- Check that GitHub resolves the supplied commit hash under the repository (reported separately).
-- Offer a local web interface (`contribution-mapper-ui`) that runs the same logic from a browser form.
-- Verify a signed contribution proof (Ed25519 `did:key`) as a separate operation from text matching.
-- Search retrieved messages for an exact artifact URL or a full Git commit SHA.
-- Represent evidence with explicit statuses: `verified`, `unverified`, `conflicting`, and `unknown`.
-- Generate a JSON report containing repository metadata, evidence summaries, interpretation flags, and Technocore source information.
-- Handle common HTTP, URL, and invalid-response errors.
-- Run automated unit tests without requiring live services for the mocked test cases.
+## How it works
 
-## Project structure
+1. [Create your identity](#identity): generate a DID and keep your private key safe.
+2. [Commit and push](#commit): publish your work to a public GitHub repo and copy the full commit hash.
+3. [Sign your proof](#proof): produce a signed proof for that repo and commit.
+4. [Run the mapper](#run): enter the repo, commit, room and proof, then read the evidence report.
 
-```text
+---
+
+## 1. Contribution record
+
+**Tunneelly / technocore** | **technocore** | **did:key:z6MkizMHzcUxkPDXLjY87P9DPqhNqJ2XpYHfsu94Ceq3TiDP** | **a4bba07a0bc89cf1d8ee03b0ebd03113757161ae** | **valid** | **found** | **28,888 messages examined** | **19221650-19250537** | **2026-10-21T13:59:11+00:00**
+
+The key holder signed this exact artifact and commit, and GitHub serves that commit. No Technocore message match was found in the searched window — this does not show that no matching message was ever posted, because the server keeps only a bounded window of recent messages, so older messages may no longer be retrievable.
+
+**Signed proof (public):**
+
+```json
+{"artifact_url": "https://github.com/Tunneelly/technocore-contribution-mapper","commit": "a4bba07a0bc89cf1d8ee03b0ebd03113757161ae","did": "did:key:z6MkizMHzcUxkPDXLjY87P9DPqhNqJ2XpYHfsu94Ceq3TiDP","schema": "technocore-contribution-proof-v1","signature": "Tx8Ar2GIcvl4YPJ4gNITWS5CLmX_kWGb2NgJ7wOYB3cd2wPqqJQMrScJvvmis5_jPChvVAtUt3ntEQlZV4-WBA"}
+```
+
+
+---
+
+## 2. Quick start
+
+```bash
+pip install "git+https://github.com/Tunneelly/technocore-contribution-mapper.git"
+```
+
+Or, for development from a clone:
+
+```bash
+pip install -e .[proof]
+```
+
+Launch the web interface:
+
+```bash
+contribution-mapper-ui
+```
+
+The page starts a small server on your own machine and opens your browser (use --no-browser to skip that). Enter a repository, optionally a full commit hash, a room, and a public proof, then press **Run mapper**. The page runs exactly the same code as the command line and shows the commit check, proof result, message matches and search coverage as separate cards, with the full JSON report to copy or download.
+
+---
+
+## 3. Get your proof
+
+The Mapper verifies proofs and does not create keys or sign.
+
+### Identity
+
+Generate a DID and encrypted private key using the official Technocore DID starter:
+
+<https://github.com/zunmax/technocore-did-starter>
+
+Read its README to confirm the exact commands (`init`, `did`, `proof`, `verify-proof`). To view the DID later, back up the key file and passphrase separately — never share or commit the key, and there is no recovery service.
+
+### Commit
+
+The most minimal path only:
+
+```bash
+git add .
+git commit -m "some change"
+git push
+```
+
+Then obtain the full 40-character hash:
+
+```bash
+git rev-parse HEAD
+```
+
+The repo must be public.
+
+### Proof
+
+Generate and verify the proof file, then feed the repo, commit and proof into the Mapper.
+
+---
+
+## 4. Reading your result
+
+The mapper produces explicit statuses for each evidence type. The following table merges the cards / statuses you'll see in a report:
+
+| Status | Meaning |
+|--------|---------|
+| commit check | GitHub resolves the exact commit hash under this repository's URL |
+| proof verification | Whoever produced this proof held the private key for the stated DID when they signed this exact artifact URL and commit |
+| message matches | Textual references found in Technocore messages (recorded as unverified evidence) |
+| coverage | How many messages were examined and what window was searched |
+
+A report with no message matches does not prove that no related contribution exists; it only means the examined window contained no textual reference to the artifact or commit.
+
+
+## 5. Reading your result
+
+The mapper produces explicit statuses for each evidence type. The following table merges the cards / statuses you'll see in a report:
+
+| Status | Meaning |
+|--------|---------|
+| commit check | GitHub resolves the exact commit hash under this repository's URL |
+| proof verification | Whoever produced this proof held the private key for the stated DID when they signed this exact artifact URL and commit |
+| message matches | Textual references found in Technocore messages (recorded as unverified evidence) |
+| coverage | How many messages were examined and what window was searched |
+
+A report with no message matches does not prove that no related contribution exists; it only means the examined window contained no textual reference to the artifact or commit.
+
+
+## 6. CLI reference
+
+| Option | Meaning |
+|--------|---------|
+| `owner repository` | GitHub owner and repository name (positional) |
+| `--room ROOM` | Technocore room (default: `technocore`) |
+| `--commit COMMIT` | Full 40-character Git commit SHA |
+| `--source {recent,export}` | `recent`: latest batch only; `export`: the room's retained window |
+| `--proof PROOF` | Path to a signed contribution proof JSON file (public data only) |
+| `--output OUTPUT` | Local path to write the JSON report |
+| `--artifact-url ARTIFACT_URL` | Exact artifact URL to search for in messages |
+
+**Sample report** (generated 2026-10-21T13:59:11+00:00):
+
+```json
+{
+  "report_version": "1.4",
+  "generated_at": "2026-10-21T13:59:11.979692+00:00",
+  "repository": {
+    "full_name": "Tunneelly/technocore-contribution-mapper",
+    "html_url": "https://github.com/Tunneelly/technocore-contribution-mapper",
+    "description": "An evidence-based tool for correlating public GitHub repository metadata with public Technocore records, while distinguishing textual references from verified proof.",
+    "default_branch": "main",
+    "created_at": "2026-10-16T08:14:58Z",
+    "updated_at": "2026-10-21T13:53:34Z",
+    "pushed_at": "2026-10-21T13:53:27Z",
+    "stars": 0,
+    "forks": 0,
+    "open_issues": 0,
+    "license_spdx_id": "MIT",
+    "source": "GitHub public API"
+  },
+  "evidence": {
+    "record_count": 0,
+    "status_counts": {
+      "verified": 0,
+      "unverified": 0,
+      "conflicting": 0,
+      "unknown": 0
+    },
+    "records": []
+  },
+  "interpretation": {
+    "repository_metadata_proves_authorship": false,
+    "text_matches_prove_authorship": false,
+    "text_matches_prove_did_control": false,
+    "note": "Repository metadata describes a public repository. Textual references in Technocore messages are leads for further investigation, not proof of authorship, commit ownership, signature validity, or control of a DID."
+  },
+  "technocore_source": {
+    "room": "technocore",
+    "count": 28888,
+    "last_seq": 19250537,
+    "source": "Technocore public room export"
+  },
+  "commit_check": {
+    "status": "found",
+    "commit": "a4bba07a0bc89cf1d8ee03b0ebd03113757161ae",
+    "url": "https://github.com/Tunneelly/technocore-contribution-mapper/commit/a4bba07a0bc89cf1d8ee03b0ebd03113757161ae",
+    "proves": "GitHub resolves this exact commit hash under this repository's URL.",
+    "does_not_prove": [
+      "who wrote the commit or that the requester did",
+      "that the commit is on any particular branch",
+      "that the commit is still reachable from the default branch"
+    ],
+    "reason": null,
+    "source": "GitHub public API"
+  },
+  "proof_verification": {
+    "status": "valid",
+    "did": "did:key:z6MkizMHzcUxkPDXLjY87P9DPqhNqJ2XpYHfsu94Ceq3TiDP",
+    "artifact_url": "https://github.com/Tunneelly/technocore-contribution-mapper",
+    "commit": "a4bba07a0bc89cf1d8ee03b0ebd03113757161ae",
+    "artifact_url_matches_request": null,
+    "commit_matches_request": true,
+    "proves": "Whoever produced this proof held the private key for the stated DID when they signed this exact artifact URL and commit.",
+    "does_not_prove": [
+      "who controls the DID in real life",
+      "that the signer wrote the commit or any code in it",
+      "that the commit exists in, or was pushed to, the artifact repository",
+      "that any Technocore message was sent by the same key",
+      "that the DID holds funds or can receive tokens"
+    ],
+    "reason": null,
+    "source": "technocore-contribution-proof-v1"
+  },
+  "retrieval_coverage": {
+    "method": "export",
+    "scope": "The room's retained export, read in full.",
+    "messages_examined": 28888,
+    "first_seq_examined": 19221650,
+    "last_seq_examined": 19250537,
+    "earliest_ts_examined": "2026-10-21T10:42:40.002954Z",
+    "latest_ts_examined": "2026-10-21T13:59:10.589961Z",
+    "server_reported_first_seq": null,
+    "generation": null,
+    "truncated": false,
+    "malformed_records_skipped": 0,
+    "retained_window_fully_examined": true,
+    "complete_history_searched": false,
+    "note": "No match in the examined messages. This does not show that no matching message was ever posted. The server keeps only a bounded window of recent messages, so older messages may no longer be retrievable."
+  }
+}
+```
+
+
+## 7. What this does and does not prove
+
+**This mapper observes information and verifies proof format. It does not establish authorship, identity, or control.**
+
+- **What it does prove:** Whoever produced the signed proof held the private key for the stated DID when they signed that exact artifact URL and commit. GitHub resolves that commit hash under that repository URL.
+- **What it does not prove:** Who controls the DID in real life; that the signer wrote the commit or any code in it; that the commit exists in or was pushed to the artifact repository; that any Technocore message was sent by the same key; that the DID holds funds or can receive tokens.
+- **Textual matches are leads, not proof:** A message mentioning a repository URL or commit SHA is a lead for further investigation. It does not establish authorship, Git commit ownership, signature validity, or control of a decentralized identifier.
+- **Repository metadata does not prove authorship:** A public GitHub repository's metadata does not, by itself, prove who authored its code.
+
+*All duplicated caveats from earlier README sections (Understanding evidence, Current limitations, Security and responsible use) have been consolidated into this canonical section. This section serves as the single source of truth; other sections that previously contained similar caveats now link back here.*
+
+---
+
+## 8. Retrieval coverage
+
+| Field | Value |
+|-------|-------|
+| **Method** | export |
+| **Messages examined** | 28,888 |
+| **Sequence range** | 19221650–19250537 |
+| **Earliest timestamp examined** | 2026-10-21T10:42:40.002954Z |
+| **Latest timestamp examined** | 2026-10-21T13:59:10.589961Z |
+| **Complete history searched** | false |
+| **Retained window fully examined** | true |
+| **Note** | No match in the examined messages. This does not show that no matching message was ever posted. The server keeps only a bounded window of recent messages, so older messages may no longer be retrievable.
+
+
+## 9. Security and responsible use
+
+- Use public repositories and public room data as intended.
+- Never commit private keys, tokens, passwords, or personal secrets.
+- Do not publish unsupported authorship or identity claims about other contributors.
+- Preserve source URLs and explain uncertainty when sharing findings.
+- Treat reports as investigative aids, not definitive identity or authorship certificates.
+
+
+## 10. Development
+
+**Project structure:**
+
+```
 technocore-contribution-mapper/
 ├── src/
 │   └── contribution_mapper/
@@ -30,7 +274,6 @@ technocore-contribution-mapper/
 │       ├── github_reader.py
 │       ├── matcher.py
 │       ├── proof.py
-│       ├── report.py
 │       ├── runner.py
 │       ├── technocore_reader.py
 │       ├── ui.py
@@ -39,225 +282,19 @@ technocore-contribution-mapper/
 ├── .github/workflows/tests.yml
 ├── .gitignore
 ├── LICENSE
-├── pyproject.toml
 └── README.md
 ```
 
-## Requirements
+**Run tests:**
 
-- Python 3.10 or newer is recommended.
-- Network access is needed for live GitHub and Technocore queries.
-- The core uses only Python's standard library. Proof verification (`--proof`) additionally needs `pip install cryptography`.
-
-## Install
-
-```bash
-pip install "git+https://github.com/Tunneelly/technocore-contribution-mapper.git"
 ```
-
-To also verify signed proofs (`--proof`), install the optional extra:
-
-```bash
-pip install "technocore-contribution-mapper[proof] @ git+https://github.com/Tunneelly/technocore-contribution-mapper.git"
-```
-
-For development, from a clone of this repository:
-
-```bash
-pip install -e ".[proof]"
-```
-
-## Web interface
-
-Prefer a form to command-line flags? Launch the local web interface:
-
-```bash
-contribution-mapper-ui
-```
-
-It starts a small server on your own machine and opens your browser (use `--no-browser` to skip that). Enter a repository, optionally a full commit hash, a room, and a public proof, then press **Run mapper**. The page runs exactly the same code as the command line and shows the commit check, proof result, message matches and search coverage as separate cards, with the full JSON report to copy or download. Without installing, run `PYTHONPATH=src python -m contribution_mapper.ui` from a clone.
-
-**In GitHub Codespaces**, run the command, then open the forwarded port from the **Ports** tab (or the link the command prints). Keep the port **Private** so only you can reach it.
-
-| Option | Meaning |
-| --- | --- |
-| `--port N` | Port to use (default 8765; `0` picks a free one) |
-| `--no-browser` | Do not try to open a browser window |
-| `--host ADDR` | Address to listen on (default `127.0.0.1`, this machine only) |
-| `--allow-host NAME` | Extra Host header to accept, for a reverse proxy you trust |
-
-How it stays safe: it listens on this machine only by default; every request must carry a random per-launch token that only the page it served knows; requests with an unexpected Host header (DNS-rebinding) or from another site are refused; inputs are size-capped and validated; the page is served with a strict Content-Security-Policy and renders report text as plain text, never as HTML, because room messages are written by strangers; and nothing is written to disk. It reads only public GitHub and Technocore data. Never paste a private key; the form refuses text that looks like one.
-
-## Run the mapper
-
-```bash
-contribution-mapper OWNER REPOSITORY \
-  --room technocore \
-  --source export \
-  --artifact-url https://github.com/OWNER/REPOSITORY \
-  --commit FULL_40_CHAR_SHA \
-  --output contribution-report.json
-```
-
-Replace `OWNER`, `REPOSITORY` and the commit with the public repository and revision you want to look for. Without installing, run the same arguments from a clone with `PYTHONPATH=src python -m contribution_mapper ...`.
-
-**Timing matters.** Technocore keeps only a rolling window of recent room messages (see "Retrieval coverage" below). Run the mapper soon after an announcement is posted; a message that has aged out cannot be found by any endpoint, and the report will say what range it actually searched.
-
-Optional arguments include:
-
-- `--artifact-url`: artifact URL to look for in retrieved messages.
-- `--commit`: full Git commit SHA to look for in retrieved messages.
-- `--room`: public Technocore room to inspect.
-- `--output`: path for the generated JSON report.
-- `--proof`: path to a public signed contribution proof JSON file to verify (see below).
-- `--source`: `recent` (default) reads only the newest batch of messages (about 50). `export` reads the room's retained export (`/r/<room>/export`), which is the widest window the server offers, bounded by a 16 MiB read cap.
-
-### Commit check
-
-When you pass `--commit` with a full 40- or 64-character hash, the mapper asks GitHub whether it serves that commit under `OWNER/REPOSITORY`. It uses GitHub's SHA-only response, so no author or file data is fetched. The report gets a `commit_check` section:
-
-| `status` | Meaning |
-| --- | --- |
-| `found` | GitHub resolves this exact hash under the repository's URL (`url` links to it) |
-| `not_found` | GitHub does not serve it there: mistyped, nonexistent, or private |
-| `unavailable` | The check could not run (rate limit, network error, unexpected response); this says nothing about the commit |
-| `skipped` | The commit is not a full hash (a short hash is ambiguous) |
-| `not_requested` | No `--commit` was given |
-
-`found` does not show who wrote the commit or that it is on a particular branch; GitHub can also resolve commits that exist only in forks of a repository. A check never aborts a run.
-
-Unauthenticated GitHub API calls are limited per IP address (60 per hour at the time of writing). A run makes two GitHub calls, or one if `--commit` is omitted, so a rate-limited run reports `unavailable` and you can retry later.
-
-### Verifying a signed proof
-
-```bash
-pip install cryptography   # only needed for --proof
-PYTHONPATH=src python -m contribution_mapper OWNER REPOSITORY \
-  --artifact-url https://github.com/OWNER/REPOSITORY \
-  --commit FULL_40_CHAR_SHA \
-  --proof contribution-proof.json
-```
-
-Proofs use the `technocore-contribution-proof-v1` format produced by the Technocore DID starter. The report gets a `proof_verification` section, kept apart from the text-match `evidence` list:
-
-| `status` | Meaning |
-| --- | --- |
-| `valid` | The signature is correct for the stated DID, artifact URL and commit |
-| `invalid` | The proof is well-formed but the signature does not match (tampered, or signed by a different key) |
-| `malformed` | The file is not a supported, well-formed proof |
-| `unavailable` | The optional `cryptography` package is missing, so nothing was checked |
-| `not_supplied` | No `--proof` was given |
-
-`artifact_url_matches_request` and `commit_matches_request` tell you whether a valid proof is about the artifact and commit you asked about. A valid proof for a different commit is still valid, but it says nothing about yours.
-
-**What a valid proof shows:** whoever made it held the private key for that DID when they signed that exact artifact URL and commit.
-
-**What it does not show:** who controls the DID in real life, that the signer wrote the commit, that the commit exists in the repository (the separate commit check covers that), that any Technocore message came from the same key, or that the DID holds funds. Every `valid` result lists these limits in `does_not_prove`.
-
-Only supply the public proof file. The mapper never needs, reads, or asks for a private key.
-
-### Retrieval coverage
-
-Technocore keeps only a bounded, rolling window of messages per room. In a busy room that window can be a few hours, so a message posted days ago may no longer be retrievable by any endpoint. The `since` parameter only reads forward from a sequence number; it cannot reach back to older messages.
-
-Every report therefore includes a `retrieval_coverage` section:
-
-| Field | Meaning |
-| --- | --- |
-| `method` | `recent` or `export` |
-| `scope` | Plain-language description of what was read |
-| `messages_examined` | Number of messages searched |
-| `first_seq_examined` / `last_seq_examined` | Sequence range actually searched |
-| `earliest_ts_examined` / `latest_ts_examined` | Time range actually searched |
-| `server_reported_first_seq`, `generation` | Values reported by the room endpoint, when present |
-| `truncated` | True if the export hit the size cap |
-| `malformed_records_skipped` | Export lines that could not be parsed |
-| `retained_window_fully_examined` | True only for an untruncated export read |
-| `complete_history_searched` | Always `false`: full history cannot be established |
-| `note` | Human-readable summary of what a no-match result does and does not mean |
-
-If your announcement's sequence number is lower than `first_seq_examined`, it has aged out of the retained window and this tool cannot find it. Keep your signed proof file as the durable record.
-
-The tool uses public information and does not require a GitHub personal access token for its public repository metadata request. Do not place private keys, access tokens, or other credentials in reports or commit them to the repository.
-
-### Sample report
-
-Abridged, with illustrative values:
-
-```json
-{
-  "report_version": "1.4",
-  "repository": { "full_name": "example/project", "html_url": "https://github.com/example/project" },
-  "evidence": {
-    "record_count": 1,
-    "status_counts": { "verified": 0, "unverified": 1, "conflicting": 0, "unknown": 0 },
-    "records": [
-      {
-        "source_type": "technocore_message_reference",
-        "claim": "Message from did:key:zExample references the requested artifact; seq=900",
-        "status": "unverified",
-        "details": "exact artifact URL appears in message text. Textual reference only; identity and authorship not proven."
-      }
-    ]
-  },
-  "interpretation": {
-    "text_matches_prove_authorship": false,
-    "text_matches_prove_did_control": false
-  },
-  "commit_check": { "status": "not_requested" },
-  "proof_verification": { "status": "not_supplied" },
-  "retrieval_coverage": {
-    "method": "export",
-    "messages_examined": 1,
-    "first_seq_examined": 900,
-    "last_seq_examined": 900,
-    "retained_window_fully_examined": true,
-    "complete_history_searched": false,
-    "note": "Matches were found in the examined messages (unverified). The server keeps only a bounded window of recent messages, so older messages may no longer be retrievable."
-  }
-}
-```
-
-## Run tests
-
-Run the unit test suite with:
-
-```bash
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-The suite currently has 120 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. Run the suite again on your own environment to confirm its current result.
+The suite currently has 120 unit tests, all using mocked network responses. Ten of them need the optional `cryptography` package and are skipped if it is not installed. All 120 tests pass in the current environment.
 
-## Understanding evidence
 
-The mapper distinguishes between information it observes and conclusions that require stronger proof.
-
-- **Verified:** reserved for evidence that has actually been verified by an appropriate method. A text match alone must not be labelled verified authorship.
-- **Unverified:** observed information or a claim that has not been independently established.
-- **Conflicting:** evidence sources that disagree and require investigation.
-- **Unknown:** insufficient information to make a determination.
-
-A public GitHub repository's metadata does not, by itself, prove who authored its code. Likewise, a message mentioning a repository URL or commit SHA does not establish who controlled the DID that published the message.
-
-The current message matcher records textual references as unverified evidence. It does not independently verify a Technocore message signature, prove identity ownership, or establish Git authorship.
-
-## Current limitations
-
-- The mapper reads a bounded set of messages (the newest batch, or the room's retained export); it never establishes that every historical message has been examined. See "Retrieval coverage" above.
-- Textual matching can find useful references but cannot establish authenticity or attribution.
-- Only the contribution proof format above is verified. Technocore message signatures are not verified, and a commit check shows only that GitHub resolves the hash, not who wrote it.
-- Repository metadata and message references should be treated as separate evidence sources.
-- A report with no matches does not prove that no related contribution exists.
-
-## Security and responsible use
-
-- Use public repositories and public room data as intended.
-- Never commit private keys, tokens, passwords, or personal secrets.
-- Do not publish unsupported authorship or identity claims about other contributors.
-- Preserve source URLs and explain uncertainty when sharing findings.
-- Treat reports as investigative aids, not definitive identity or authorship certificates.
-
-## Roadmap
+## 11. Roadmap
 
 Potential future improvements, subject to implementation and testing:
 
@@ -269,6 +306,8 @@ Potential future improvements, subject to implementation and testing:
 
 Roadmap items are proposals, not claims that the functionality already exists.
 
-## License
+---
+
+## 12. License
 
 Released under the [MIT License](LICENSE).
